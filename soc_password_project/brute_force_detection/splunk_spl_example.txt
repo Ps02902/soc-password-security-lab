@@ -1,0 +1,41 @@
+Splunk SPL examples for SSH brute-force detection
+===================================================
+
+These assume your sshd auth.log is indexed with sourcetype=linux_secure
+(or similar) and fields src_ip, user, action (success/failure) extracted,
+e.g. via the Splunk Add-on for Unix and Linux.
+
+1) Brute force: many failures from one source IP in a short window
+---------------------------------------------------------------------
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "from (?<src_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "for (invalid user )?(?<user>\S+) from"
+| bin _time span=1m
+| stats count AS failed_attempts, dc(user) AS distinct_users by src_ip, _time
+| where failed_attempts >= 10
+| sort - failed_attempts
+
+2) Password spraying: many distinct usernames from one IP (lower volume, wider spread)
+---------------------------------------------------------------------------------------
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "from (?<src_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "for (invalid user )?(?<user>\S+) from"
+| bin _time span=10m
+| stats dc(user) AS distinct_users, count AS attempts by src_ip, _time
+| where distinct_users >= 5
+| sort - distinct_users
+
+3) Brute force followed by success - highest priority alert
+---------------------------------------------------------------------
+index=linux_secure sourcetype=linux_secure ("Failed password" OR "Accepted password")
+| rex field=_raw "from (?<src_ip>\d+\.\d+\.\d+\.\d+)"
+| rex field=_raw "(Failed|Accepted) password for (invalid user )?(?<user>\S+) from"
+| rex field=_raw "^(?<action>Failed|Accepted)"
+| transaction src_ip maxspan=2m startswith=(action="Failed") endswith=(action="Accepted")
+| where eventcount >= 10
+| table _time, src_ip, user, eventcount
+
+Saved as an alert: schedule search 1) or 3) to run every 5 minutes over
+the last 5 minutes, trigger when results > 0, and route to your SOAR /
+ticketing system. This is the Splunk equivalent of detect_bruteforce.py
+and the Wazuh rule in this folder - same detection logic, three tools.

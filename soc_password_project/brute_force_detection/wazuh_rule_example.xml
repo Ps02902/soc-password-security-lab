@@ -1,0 +1,35 @@
+<!--
+  Example Wazuh custom rules for SSH brute-force detection.
+  Place inside <group name="local,syslog,sshd,"> in
+  /var/ossec/etc/rules/local_rules.xml and restart the manager.
+
+  Wazuh already ships base SSH rules (5700-5704 range) that this builds on;
+  rule 5710/5712 here are "frequency" rules that fire when a base rule
+  repeats N times within a time window from the same source.
+-->
+<group name="local,syslog,sshd,">
+
+  <!-- Tier 1: repeated failed password attempts from the same IP -->
+  <rule id="100100" level="10" frequency="8" timeframe="60">
+    <if_matched_sid>5716</if_matched_sid>
+    <same_source_ip />
+    <description>SSH brute force attempt: 8+ failed logins from the same source IP in 60 seconds</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <!-- Tier 2: escalate if a success follows a flagged brute-force burst -->
+  <rule id="100101" level="15" frequency="1" timeframe="30">
+    <if_matched_sid>100100</if_matched_sid>
+    <if_sid>5715</if_sid>
+    <same_source_ip />
+    <description>SSH brute force followed by a successful login - possible compromise</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_success,</group>
+  </rule>
+
+</group>
