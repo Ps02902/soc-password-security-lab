@@ -153,7 +153,3 @@ Only run John the Ripper, Hashcat, or any brute-force simulation against
 systems and credentials you own or have explicit written permission to
 test, inside an isolated lab/VM. `simulate_ssh_attack.py` only ever
 generates synthetic log text - it never touches a real SSH service.
-
-
-![Brute force detection alert](screenshots/detection_alert.png)
-![alt text](image.png)
